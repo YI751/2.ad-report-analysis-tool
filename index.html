@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB広告レポート分析 & 所感生成ツール (Ver 6.4)</title>
+    <title>WEB広告レポート分析・改善施策提案ツール Ver 7.5</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -151,16 +151,16 @@
         // --- 3. Analysis Configurations ---
         // Rearranged Order: Summary first, Comparison last
         const ANALYSIS_SECTIONS = [
-            { id: 'summary', title: '全体サマリー', icon: 'BarChart2', description: 'KPI達成状況、特記事項の反映' },
-            { id: 'comparisonMoM', title: '【比較】期間比較・トレンド分析', icon: 'ArrowLeftRight', description: '任意の複数ファイルの比較（前月比、過去比）、トレンド変化の分析' },
+            { id: 'summary', title: '全体サマリー', icon: 'BarChart2', description: '広告全体の分析・CV/KPIなどWEBプロモーションの目標数値達成状況について' },
+            { id: 'comparisonMoM', title: '【比較】期間比較・トレンド分析', icon: 'ArrowLeftRight', description: '任意の複数ファイルの比較（前月比、過去比など）、トレンド変化の分析' },
             { id: 'comparisonYoY', title: '【比較】前年同月比分析', icon: 'CalendarDays', description: '昨対比、季節要因の分析' },
-            { id: 'timeSeries', title: '時系列・推移分析', icon: 'TrendingUp', description: '日次予算消化ペース、異常値（スパイク）の原因特定' },
-            { id: 'dayTime', title: '曜日・時間帯分析', icon: 'Clock', description: '獲得集中時間、機会損失の可能性' },
-            { id: 'campaigns', title: 'キャンペーン分析', icon: 'Layers', description: '好調/不調キャンペーンの要因特定と予算配分' },
-            { id: 'creatives', title: 'クリエイティブ分析', icon: 'Image', description: '勝ちクリエイティブの法則性、CTR評価' },
+            { id: 'timeSeries', title: '時系列・推移分析', icon: 'TrendingUp', description: '日次予算消化ペースを基に分析' },
+            { id: 'dayTime', title: '曜日・時間帯分析', icon: 'Clock', description: '獲得集中時間、機会損失の可能性などを分析' },
+            { id: 'campaigns', title: 'キャンペーン分析', icon: 'Layers', description: '好調/不調キャンペーンの要因特定と予算配分について' },
+            { id: 'creatives', title: 'クリエイティブ分析', icon: 'Image', description: '反応率の高いクリエイティブの法則性、CTRなどの分析' },
             { id: 'keywords', title: 'キーワード分析', icon: 'Search', description: '検索意図の分析、除外/拡張キーワード提案' },
-            { id: 'attributes', title: 'ユーザー属性分析', icon: 'Users', description: '性別・年齢・地域ごとの獲得効率' },
-            { id: 'devices', title: 'デバイス分析', icon: 'Smartphone', description: 'デバイス間の格差、UI/UX改善提案' },
+            { id: 'attributes', title: 'ユーザー属性分析', icon: 'Users', description: '性別・年齢・地域ごとの広告効率についての分析' },
+            { id: 'devices', title: 'デバイス分析', icon: 'Smartphone', description: 'デバイス毎の効果検証、改善提案' },
         ];
 
         // --- 4. Main Component ---
@@ -170,7 +170,7 @@
             const [fileContents, setFileContents] = React.useState({}); // Stores actual content by filename
             const [mode, setMode] = React.useState('pachinko'); 
             
-            // Expanded Input States (7 -> 8 Items)
+            // Expanded Input States (Updated to 9 Items)
             const [inputs, setInputs] = React.useState({
                 period: '',
                 goal: '',
@@ -179,13 +179,14 @@
                 competitor: '',
                 issues: '',
                 notes: '',
-                geoData: '' // New: GEO/Location Data
+                geoData: '', // GEO/Location Data
+                roasRoi: ''  // New: ROAS/ROI Goals & Actuals
             });
             const [isInputExpanded, setIsInputExpanded] = React.useState(false);
 
             // API & Model Settings
-            // Default model changed to gemini-2.5-pro
-            const [modelName, setModelName] = React.useState('gemini-2.5-pro');
+            // Default model set to gemini-2.5-flash for cost saving
+            const [modelName, setModelName] = React.useState('gemini-2.5-flash');
             const [showSettings, setShowSettings] = React.useState(false);
             
             // Analysis State
@@ -262,7 +263,6 @@
             const runAnalysis = async (sectionId) => {
                 if (files.length === 0) { alert('ファイルをアップロードしてください。'); return; }
                 
-                // URL未設定チェック
                 if (GCP_API_ENDPOINT.includes("YOUR_GCP")) {
                     alert('GCPのURLが設定されていません。HTMLファイル内の GCP_API_ENDPOINT を書き換えてください。');
                     return;
@@ -284,13 +284,13 @@
                         throw new Error("ファイルの内容を読み取れませんでした。ファイルを再アップロードしてください。");
                     }
 
-                    // Build System Prompt based on Mode (Using approved definitions)
+                    // Build System Prompt based on Mode
                     let systemPrompt = "";
                     if (mode === 'general_cv') {
                         systemPrompt = `
 あなたはWEB広告運用のプロフェッショナルコンサルタントです。
 クライアントの売上拡大・利益最大化を目的とし、数値に基づいた論理的な分析を行ってください。
-【評価基準】: CPA（獲得単価）、ROAS（広告費用対効果）、CVR（コンバージョン率）を最重要指標とします。
+【評価基準】: CPA（獲得単価）、ROAS（広告費用対効果）、CVR（コンバージョン率）、CV（コンバージョン）を最重要指標とします。
 【トーン＆マナー】: 
 - クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。
 - メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。
@@ -308,8 +308,8 @@
 `;
                     } else if (mode === 'pachinko') {
                         systemPrompt = `
-あなたはパチンコホール集客の専門マーケターです。
-店舗の「稼働率向上」「来店客数増加」を目的とした分析を行ってください。
+あなたはパチンコホール集客の専門WEBマーケターです。
+店舗の「稼働率向上」「来店客数増加」を目的とした分析を行ってください。 CTR（クリック率）、CPC（クリック単価）、インプレッション数、CPMについても可能な限り分析し、改善策を提案してください。
 【重要・用語制限】: 
 - 「CV（コンバージョン）」という言葉は絶対に使用せず、「来店」「稼働」「アクション」「客数」などに言い換えてください。
 - 「CPA」は「来店獲得単価」や「アクション単価」と言い換えてください。
@@ -321,25 +321,34 @@
 `;
                     }
 
-                    // Build User Context from 7 Inputs
+                    // Build User Context from 9 Inputs (Updated High Priority Instructions with ROAS/ROI)
                     const userContext = `
-【分析の前提条件（営業担当からの共有事項）】
+【最重要：分析の前提データ（データ修正・上書き指示）】
+以下の「詳細入力オプション」に記載された情報は、アップロードされたレポートファイルの数値よりも**優先度が高い**情報です。
+特に「その他特記事項」や「GEOデータ」、「ROAS/ROI目標」に具体的な数値が記述されている場合は、
+**レポートファイルの数値を無視し、入力された数値を「正」として分析を行ってください。**
+
 1. 分析対象期間: ${inputs.period || "レポートデータの日付に従う"}
 2. プロモーションのゴール: ${inputs.goal || "特になし"}
-3. ターゲット層: ${inputs.target || "特になし"}
+3.ターゲット層: ${inputs.target || "特になし"}
 4. 訴求ポイント・強み: ${inputs.strength || "特になし"}
 5. 競合・市場状況: ${inputs.competitor || "特になし"}
 6. 現状の課題感: ${inputs.issues || "特になし"}
 7. その他特記事項: ${inputs.notes || "特になし"}
 8. GEO広告・来店計測データ: ${inputs.geoData || "特になし（※ファイル内に来店データがある場合はそちらを優先して分析してください）"}
+9. ROAS/ROI目標・実績: ${inputs.roasRoi || "特になし（※入力がある場合は、この目標値に対する達成度を最優先で評価してください）"}
 `;
 
                     const sectionConfig = ANALYSIS_SECTIONS.find(s => s.id === sectionId);
                     
-                    // Special prompt adjustment for Comparison sections
-                    let comparisonInstruction = "";
+                    // ===============================================
+                    //  Logic Branching for "Comparison" vs "Single Month"
+                    // ===============================================
+                    let specificInstruction = "";
+
+                    // A. 比較専用セクション（複数ファイルの比較を許可・推奨）
                     if (sectionId === 'comparisonMoM') {
-                        comparisonInstruction = `
+                        specificInstruction = `
 【重要：期間比較・トレンド分析モード（汎用比較）】
 今回は「期間比較・トレンド分析」です。
 入力データの中に、**「複数の期間のファイル」**（例：11月と9月、あるいは11月と6月など）が含まれているか確認してください。
@@ -356,13 +365,19 @@
    - データ内に「前月比」や「過去比」などの項目があればそれを使用してください。
    - 過去データが全くない場合は、「比較対象となる過去データが見つかりません」と前置きした上で、当月のデータから読み取れるトレンド（前半vs後半など）を記述してください。
 
-【出力構成】
-・【数値比較】: 主要KPI（CV, CPA, ROAS等）の期間比較（例：11月 vs 6月）
-・【要因分析】: その期間で何が変化し、なぜ良くなった/悪くなったのか
-・【今後の対策】: このトレンドを踏まえた具体的なアクション
+【深掘り分析の必須要件】
+「数値が増えた/減った」という事実報告だけでは不十分です。
+**「なぜ変化したのか？（要因の仮説）」**と**「その変化を受けて、今後どう対策すべきか？（具体的なアクション）」**まで深く踏み込んで記述してください。
+プロのコンサルタントとして、クライアントが気づいていない視点を提供してください。
+
+【数値の取り扱いに関する絶対ルール】
+ユーザーからの「詳細入力オプション（特にその他特記事項）」に、期間ごとのCV数や売上などの数値が記載されている場合は、
+**必ずその数値をメインの比較対象として使用してください。**
+レポートファイルの数値と比較して乖離がある場合は、「レポート上は〇〇件ですが、実数値（特記事項）に基づくと～」という文脈で分析してください。
 `;
-                    } else if (sectionId === 'comparisonYoY') {
-                        comparisonInstruction = `
+                    } 
+                    else if (sectionId === 'comparisonYoY') {
+                        specificInstruction = `
 【重要：前年比較モード】
 今回は「前年同月比分析」です。
 データの中に「前年（昨年の同月）」のデータが含まれているか確認してください。
@@ -370,22 +385,79 @@
 
 1. 昨年と比較して、市場環境やユーザーの反応がどう変化したかを分析してください。
 2. データがない場合は、季節要因（今の時期特有の動き）について一般論を交えて分析してください。
+3. 単なる増減だけでなく、市場トレンドや外的要因も絡めて深く考察してください。
 `;
+                    }
+                    
+                    // B. その他のセクション（最新データのみを使用する強力な制約）
+                    else {
+                        // 基本の最新データ限定プロンプト
+                        let baseInstruction = `
+【最重要：分析対象データの期間限定について】
+今回アップロードされたデータセットには、過去（先月や昨年）のファイルが含まれている可能性があります。
+しかし、本セクション「${sectionConfig.title}」では、**「最新の状況」のみを分析したい**ため、以下のルールを厳守してください。
+
+1. **最新ファイルの特定**: データ内の日付やファイル名を確認し、**「最も日付が新しい期間（当月）」**のデータのみを抽出してください。
+2. **過去データの除外**: 比較用の過去データ（前月、昨年など）は、本セクションではノイズとなるため**完全に無視**してください。「先月と比べて～」といった比較の言及も禁止します。
+3. **現状分析への集中**: 「今、どうなっているか」だけに焦点を当てて分析を行ってください。
+`;
+
+                        // 全体サマリーの場合は、8大指標の網羅要件と深掘り要件を追加
+                        if (sectionId === 'summary') {
+                            baseInstruction += `
+【重要：全体サマリー作成の必須要件 - 深掘り分析】
+最新データに基づき、以下の **8大指標** を必ず網羅的に確認し、数値を含めて分析してください。
+1. **表示回数 (Imp)**
+2. **クリック数 (Click)**
+3. **クリック率 (CTR)**
+4. **クリック単価 (CPC)**
+5. **費用 (Cost)**
+6. **コンバージョン数 (CV)** ※パチンコモードの場合は「来店数」等に読み替え
+7. **コンバージョン率 (CVR)**
+8. **獲得単価 (CPA)**
+9. **広告費用対効果 (ROAS)** ※データがある場合
+
+**【重要：ROAS/ROI目標・実績との乖離分析】**
+詳細入力オプションに「ROAS/ROI目標」が入力されている場合は、その数値を**「絶対的な評価基準」**としてください。
+- 目標を達成している場合: 勝因を分析し、さらなる拡大策を提案してください。
+- 目標未達の場合: **「なぜ届かなかったのか」**の要因特定と、**「ギャップを埋めるための具体的な改善施策」**を最優先で記述してください。
+
+**【重要：深掘り分析の徹底】**
+単に数値を羅列するだけの「浅いレポート」は禁止します。
+以下のような視点で、プロフェッショナルな深い考察を行ってください。
+- **KPI間の相関関係**: 「クリック率は高いがCVRが低い要因は何か？（LPの離脱？ターゲティングのズレ？）」など。
+- **ボトルネックの特定**: 現状の最大の課題（CPA高騰の主因など）をズバリ指摘してください。
+- **成果の要因**: なぜ今月は良かったのか/悪かったのか、具体的な仮説を提示してください。
+`;
+                        }
+
+                        // キャンペーン分析などの場合でもROAS/ROIを意識させる
+                        if (sectionId !== 'summary') {
+                            baseInstruction += `
+**【ROAS/ROIの考慮】**
+もし入力データにROAS/ROIの目標値がある場合は、本セクション（${sectionConfig.title}）の分析においても、
+その目標達成に貢献しているか、足を引っ張っているかという視点を盛り込んでください。
+`;
+                        }
+
+                        specificInstruction = baseInstruction;
                     }
 
                     // Strict instruction to focus only on the specific section
                     const prompt = `
 ${systemPrompt}
 
+${userContext}
+
 【今回のミッション】
 あなたは今、**【${sectionConfig.title}】** の専任担当者です。
 渡されたレポートデータの中から、**【${sectionConfig.title}】** に関連する数値や情報「のみ」を抽出し、深い分析を行ってください。
 
 【禁止事項】
-- 全体サマリーや、他の分析項目（${ANALYSIS_SECTIONS.filter(s => s.id !== sectionId).map(s => s.title).join(', ')}など）については、**一切言及しないでください**。
+- 全体サマリーや、他の分析項目については、**一切言及しないでください**（※全体サマリー作成時を除く）。
 - 焦点がぼやけるため、広く浅い分析は禁止します。**${sectionConfig.title}** の一点突破で詳しく記述してください。
 
-${comparisonInstruction}
+${specificInstruction}
 
 【最重要: 出力形式の厳守事項（Markdown禁止）】
 1. **Markdown記号の完全排除**:
@@ -398,27 +470,55 @@ ${comparisonInstruction}
    - 「拝啓」「敬具」「お世話になっております」などの挨拶は不要です。いきなり本題に入ってください。
 
 3. **GEO広告・来店データの取り扱い**:
-   - 詳細入力欄（GEO広告・来店計測データ）が空欄であっても、アップロードされたレポートデータ内に「来店数」「来店率」「CPV」などの指標が含まれている場合は、必ずそれを読み取って分析に含めてください。
+   - 詳細入力欄（GEO広告・来店計測データ）が空欄であっても、アップロードされたレポートデータ内に「来店数」「来店率」「来店単価」などの指標が含まれている場合は、必ずそれを読み取って分析に含めてください。
    - 来店データが見つからない場合のみ、WEB上の数値（CV、CPA等）を中心に分析してください。
 
 4. **文章構成**:
    - 必ず以下の2つのセクションで構成してください。
    
    【現状分析】
-   （ここに分析内容を記述）
+   （ここに分析内容を記述。数値の背景にある「要因」まで深く踏み込むこと）
 
    【改善施策】
-   （ここに改善案を記述）
+   （ここに改善案を記述。具体的かつ実行可能なアクションプランを提示すること）
 
-${userContext}
+【可読性を高めるための改行・フォーマットルール（厳守）】
+多忙な営業担当者が、スマホやPCでパッと見て「3秒」で内容を理解できるように、以下のルールを徹底してください。
+
+1. **「。」で必ず改行**:
+   - 文章がダラダラ続くことを防ぐため、句点「。」が来たら必ず改行してください。
+   - 1つの段落が3行以上にならないようにしてください。
+
+2. **リスト形式の行間圧縮**:
+   - 箇条書き（・）の項目同士の間に、無駄な空行を入れないでください。
+   - 悪い例：
+     ・項目A
+     
+     ・項目B
+   - 良い例：
+     ・項目A
+     ・項目B
+
+3. **1文の長さ制限**:
+   - 1つの文は短くシンプルにしてください。
+   - 接続詞（〜が、〜ので、）で長く繋げず、一度言い切ってください。
+
+4. **余白の制御**:
+   - セクション（【現状分析】など）の前後には空行を1行入れてください。
+   - それ以外で、無意味に2行以上の連続した改行を入れないでください。
 
 【レポートデータ（複数ファイル含む可能性あり）】
 ${rawData}
+
+--------------------------------------------------
+【最終確認: 分析の必須条件】
+分析を行う前に、再度以下の「詳細入力オプション」の内容を確認してください。
+これはレポートデータよりも優先される絶対条件です。
+特に数値の指定がある場合は、これを正として分析結果（CPA等の再計算含む）を出力してください。
+
+${userContext}
 `;
 
-                    // ===============================================
-                    //  CHANGE: Call GCP Proxy instead of Direct API
-                    // ===============================================
                     const response = await fetch(GCP_API_ENDPOINT, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -434,7 +534,7 @@ ${rawData}
                     }
 
                     const resultJson = await response.json();
-                    const aiText = resultJson.text || "生成エラー"; // GCPは { text: "..." } を返す
+                    const aiText = resultJson.text || "生成エラー";
                     
                     updateResult(sectionId, aiText);
                     setExpandedSections(prev => ({ ...prev, [sectionId]: true })); 
@@ -461,6 +561,7 @@ ${rawData}
                 csvContent += `"前提条件: 課題","${inputs.issues}"\n`;
                 csvContent += `"前提条件: 特記事項","${inputs.notes}"\n`;
                 csvContent += `"前提条件: GEO来店データ","${inputs.geoData}"\n`;
+                csvContent += `"前提条件: ROAS/ROI目標","${inputs.roasRoi}"\n`;
 
                 ANALYSIS_SECTIONS.forEach(section => {
                     const content = results[section.id] || "（未生成）";
@@ -485,7 +586,7 @@ ${rawData}
                                 <Icons.PieChart className="w-8 h-8 text-blue-500" />
                                 <span>Ad Report AI</span>
                             </h1>
-                            <p className="text-xs mt-2 text-slate-500">Ver 6.4 (Flexible Compare)</p>
+                            <p className="text-xs mt-2 text-slate-500 font-mono">Ver 1.0</p>
                         </div>
                         <nav className="flex-1 p-4 overflow-y-auto">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Analysis Menu</div>
@@ -520,12 +621,12 @@ ${rawData}
                     <main className="flex-1 flex flex-col relative overflow-hidden">
                         <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center shadow-sm z-10">
                             <div className="flex items-center gap-4">
-                                <h2 className="text-xl font-bold text-slate-800">新規レポート作成</h2>
+                                <h2 className="text-xl font-bold text-slate-800">レポート分析</h2>
                                 <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">Model: {modelName}</span>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={downloadAllCSV} disabled={Object.keys(results).length === 0} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors">
-                                    <Icons.Table className="w-4 h-4" /> CSV一括ダウンロード
+                                <button onClick={downloadAllCSV} disabled={Object.keys(results).length === 0} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm">
+                                    <Icons.Download className="w-4 h-4" /> CSV一括ダウンロード
                                 </button>
                             </div>
                         </header>
@@ -572,14 +673,14 @@ ${rawData}
                                                 <input type="radio" name="mode" value="general_cv" checked={mode === 'general_cv'} onChange={e => setMode(e.target.value)} className="text-blue-600" />
                                                 <div>
                                                     <span className="block text-sm font-bold text-slate-800">他業種 (CVあり)</span>
-                                                    <span className="block text-xs text-slate-500">CPA/ROAS重視</span>
+                                                    <span className="block text-xs text-slate-500">CV/CPA重視</span>
                                                 </div>
                                             </label>
                                             <label className={`flex items-center gap-2 cursor-pointer p-3 rounded-lg border transition-all ${mode === 'general_branding' ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                                                 <input type="radio" name="mode" value="general_branding" checked={mode === 'general_branding'} onChange={e => setMode(e.target.value)} className="text-blue-600" />
                                                 <div>
                                                     <span className="block text-sm font-bold text-slate-800">他業種 (CVなし)</span>
-                                                    <span className="block text-xs text-slate-500">認知・CTR重視</span>
+                                                    <span className="block text-xs text-slate-500">IMP/CPC/CTR重視</span>
                                                 </div>
                                             </label>
                                             <label className={`flex items-center gap-2 cursor-pointer p-3 rounded-lg border transition-all ${mode === 'pachinko' ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
@@ -633,12 +734,12 @@ ${rawData}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-500 mb-1">7. その他特記事項</label>
-                                                    <textarea className="w-full p-2 border border-slate-300 rounded text-sm h-16 mb-4" placeholder="例: 台風で休業があったため..." value={inputs.notes} onChange={e => handleInputChange('notes', e.target.value)}></textarea>
+                                                    <label className="block text-xs font-bold text-slate-500 mb-1">7. その他特記事項 (データ上書き指示など)</label>
+                                                    <textarea className="w-full p-2 border border-slate-300 rounded text-sm h-16 mb-4" placeholder="例: レポート上はCV0件ですが、電話で5件予約が入りました。" value={inputs.notes} onChange={e => handleInputChange('notes', e.target.value)}></textarea>
                                                 </div>
 
-                                                {/* New: GEO Data Input */}
-                                                <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+                                                {/* GEO Data Input */}
+                                                <div className="bg-red-50 p-4 rounded-lg border border-red-100 mb-4">
                                                     <label className="block text-xs font-bold text-red-600 mb-1 flex items-center gap-1">
                                                         <Icons.MapPin className="w-3 h-3" /> 8. GEO広告・来店計測データ
                                                     </label>
@@ -647,6 +748,19 @@ ${rawData}
                                                         placeholder="例: 来店数 1,200人, 来店率 0.5%, エリアAからの来店が増加" 
                                                         value={inputs.geoData} 
                                                         onChange={e => handleInputChange('geoData', e.target.value)}
+                                                    ></textarea>
+                                                </div>
+
+                                                {/* New: ROAS/ROI Data Input */}
+                                                <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+                                                    <label className="block text-xs font-bold text-orange-600 mb-1 flex items-center gap-1">
+                                                        <Icons.TrendingUp className="w-3 h-3" /> 9. ROAS/ROI目標・実績 (重要)
+                                                    </label>
+                                                    <textarea 
+                                                        className="w-full p-2 border border-orange-200 rounded text-sm h-16 focus:ring-orange-200 focus:border-orange-400" 
+                                                        placeholder="例: 目標ROAS 200%に対して実績150%で未達。損益分岐点は180%。" 
+                                                        value={inputs.roasRoi} 
+                                                        onChange={e => handleInputChange('roasRoi', e.target.value)}
                                                     ></textarea>
                                                 </div>
                                             </div>
@@ -702,12 +816,13 @@ ${rawData}
                                                     {isLoading ? (
                                                         <div className="py-12 text-center">
                                                             <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-600 mb-4"></div>
-                                                            <p className="text-slate-500 animate-pulse">AIがデータを分析し、改善策を考案中...</p>
+                                                            <p className="text-slate-500 animate-pulse font-bold">AIがデータを分析しています...</p>
+                                                            <p className="text-xs text-slate-400 mt-2">※ファイルサイズによって30秒〜2分ほどかかる場合があります</p>
                                                         </div>
                                                     ) : (
                                                         <div>
                                                             <div className="flex justify-between items-center mb-2">
-                                                                <label className="text-xs font-bold text-slate-500 uppercase">Analysis Result & Proposal (Editable)</label>
+                                                                <label className="text-xs font-bold text-slate-500 uppercase">分析結果</label>
                                                                 <span className="text-xs text-slate-400">自由に編集可能です</span>
                                                             </div>
                                                             <textarea
@@ -747,9 +862,10 @@ ${rawData}
                                             onChange={(e) => setModelName(e.target.value)}
                                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                                         >
-                                            <option value="gemini-2.5-pro">gemini-2.5-pro (高精度分析用)</option>
-                                            <option value="gemini-2.5-flash">gemini-2.5-flash (高速分析用)</option>
+                                            <option value="gemini-2.5-flash">gemini-2.5-flash (推奨: 高速・低コスト)</option>
+                                            <option value="gemini-2.5-pro">gemini-2.5-pro (高精度・複雑な推論用)</option>
                                         </select>
+                                        <p className="text-xs text-slate-500 mt-2">※通常はFlashモデルで十分な精度が出ます。</p>
                                     </div>
                                     <button 
                                         onClick={saveSettings}
