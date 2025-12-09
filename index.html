@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB広告レポート分析・改善施策提案ツール Ver 7.5</title>
+    <title>WEB広告レポート分析・改善施策提案ツール Ver 7.7</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -15,6 +15,9 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <!-- File Parsing Libraries -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -29,6 +32,7 @@
                     },
                     animation: {
                         'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'spin-slow': 'spin 3s linear infinite',
                     },
                     keyframes: {
                         fadeIn: {
@@ -57,9 +61,18 @@
     <script type="text/babel">
         // ==========================================
         //  CONFIG: GCP Cloud Function Endpoint
-        //  【設定完了】あなたのGCP中継サーバーURL
         // ==========================================
         const GCP_API_ENDPOINT = "https://proxy-gemini-897800245156.asia-northeast1.run.app"; 
+
+        // ==========================================
+        //  CONFIG: Supabase Settings
+        //  (From index2.html)
+        // ==========================================
+        const SUPABASE_URL = 'https://zflsgqzuvcnahxmthjpk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmbHNncXp1dmNuYWh4bXRoanBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1MTE1NzMsImV4cCI6MjA2NzA4NzU3M30.P1dLtsIorP7PoKkL97UCJ3UmIm_OQFu0NPJNmCOZV1I';
+
+        // Initialize Supabase
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // --- 1. Icons ---
         const Icons = {
@@ -85,7 +98,9 @@
             Table: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>,
             ArrowLeftRight: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>,
             CalendarDays: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>,
-            MapPin: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            MapPin: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>,
+            LogOut: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
+            Lock: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         };
 
         // --- 2. File Parser Utility ---
@@ -149,7 +164,6 @@
         }
 
         // --- 3. Analysis Configurations ---
-        // Rearranged Order: Summary first, Comparison last
         const ANALYSIS_SECTIONS = [
             { id: 'summary', title: '全体サマリー', icon: 'BarChart2', description: '広告全体の分析・CV/KPIなどWEBプロモーションの目標数値達成状況について' },
             { id: 'comparisonMoM', title: '【比較】期間比較・トレンド分析', icon: 'ArrowLeftRight', description: '任意の複数ファイルの比較（前月比、過去比など）、トレンド変化の分析' },
@@ -163,14 +177,122 @@
             { id: 'devices', title: 'デバイス分析', icon: 'Smartphone', description: 'デバイス毎の効果検証、改善提案' },
         ];
 
-        // --- 4. Main Component ---
+        // --- 4. Login Component ---
+        function Login({ onLoginSuccess }) {
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [isSignUp, setIsSignUp] = React.useState(false);
+            const [loading, setLoading] = React.useState(false);
+            const [message, setMessage] = React.useState({ text: '', type: '' });
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setMessage({ text: '', type: '' });
+
+                try {
+                    if (isSignUp) {
+                        const { error } = await supabaseClient.auth.signUp({
+                            email,
+                            password,
+                            options: {
+                                emailRedirectTo: `${window.location.origin}/auth-verify.html`
+                            }
+                        });
+                        if (error) throw error;
+                        setMessage({ text: '確認メールを送信しました。メール内のリンクをクリックしてください。', type: 'success' });
+                    } else {
+                        const { error } = await supabaseClient.auth.signInWithPassword({
+                            email,
+                            password
+                        });
+                        if (error) throw error;
+                        // onAuthStateChange will handle the redirection/state update
+                    }
+                } catch (error) {
+                    setMessage({ text: error.message, type: 'error' });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <div className="bg-blue-100 p-3 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                <Icons.Lock className="w-8 h-8 text-blue-600" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-800">
+                                {isSignUp ? 'アカウント作成' : 'レポート分析ツール'}
+                            </h2>
+                            <p className="text-slate-500 mt-2">
+                                {isSignUp ? '新しいアカウントを作成して開始します' : 'ログインして分析を開始してください'}
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">メールアドレス</label>
+                                <input 
+                                    type="email" 
+                                    required 
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">パスワード</label>
+                                <input 
+                                    type="password" 
+                                    required 
+                                    minLength="6"
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                            </div>
+
+                            {message.text && (
+                                <div className={`p-3 rounded-lg text-sm ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                    {message.text}
+                                </div>
+                            )}
+
+                            <button 
+                                type="submit" 
+                                disabled={loading}
+                                className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                {isSignUp ? '登録する' : 'ログイン'}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <button 
+                                onClick={() => { setIsSignUp(!isSignUp); setMessage({ text: '', type: '' }); }}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                {isSignUp ? 'すでにアカウントをお持ちの方はこちら' : 'アカウントをお持ちでない方はこちら'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- 5. Main App Component ---
         function App() {
-            // State
-            const [files, setFiles] = React.useState([]); // Stores file metadata
-            const [fileContents, setFileContents] = React.useState({}); // Stores actual content by filename
+            // Auth State
+            const [user, setUser] = React.useState(null);
+            const [authLoading, setAuthLoading] = React.useState(true);
+
+            // Tool State
+            const [files, setFiles] = React.useState([]); 
+            const [fileContents, setFileContents] = React.useState({}); 
             const [mode, setMode] = React.useState('pachinko'); 
-            
-            // Expanded Input States (Updated to 9 Items)
             const [inputs, setInputs] = React.useState({
                 period: '',
                 goal: '',
@@ -179,20 +301,31 @@
                 competitor: '',
                 issues: '',
                 notes: '',
-                geoData: '', // GEO/Location Data
-                roasRoi: ''  // New: ROAS/ROI Goals & Actuals
+                geoData: '', 
+                roasRoi: ''  
             });
             const [isInputExpanded, setIsInputExpanded] = React.useState(false);
-
-            // API & Model Settings
-            // Default model set to gemini-2.5-flash for cost saving
             const [modelName, setModelName] = React.useState('gemini-2.5-flash');
             const [showSettings, setShowSettings] = React.useState(false);
-            
-            // Analysis State
             const [results, setResults] = React.useState({});
             const [loadingStates, setLoadingStates] = React.useState({}); 
             const [expandedSections, setExpandedSections] = React.useState({ summary: true }); 
+
+            // Auth Check Effect
+            React.useEffect(() => {
+                const checkUser = async () => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    setUser(session?.user || null);
+                    setAuthLoading(false);
+                };
+                checkUser();
+
+                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+                    setUser(session?.user || null);
+                });
+
+                return () => subscription.unsubscribe();
+            }, []);
 
             // Init
             React.useEffect(() => {
@@ -202,6 +335,10 @@
             }, []);
 
             // Handlers
+            const handleLogout = async () => {
+                await supabaseClient.auth.signOut();
+            };
+
             const saveSettings = () => {
                 localStorage.setItem('gemini_model', modelName);
                 setShowSettings(false);
@@ -210,8 +347,6 @@
             const handleDrop = async (e) => {
                 e.preventDefault();
                 const droppedFiles = Array.from(e.dataTransfer.files);
-                
-                // Process and store contents immediately
                 for (const file of droppedFiles) {
                     try {
                         const content = await FileParser.parse(file);
@@ -220,13 +355,11 @@
                         console.error(`Error parsing ${file.name}:`, error);
                     }
                 }
-                
                 setFiles(prev => [...prev, ...droppedFiles]);
             };
             
             const handleFileSelect = async (e) => {
                 const selectedFiles = Array.from(e.target.files);
-                
                 for (const file of selectedFiles) {
                     try {
                         const content = await FileParser.parse(file);
@@ -235,16 +368,11 @@
                         console.error(`Error parsing ${file.name}:`, error);
                     }
                 }
-                
                 setFiles(prev => [...prev, ...selectedFiles]);
             };
 
             const removeFile = (idx) => {
-                setFiles(prev => {
-                    const newFiles = prev.filter((_, i) => i !== idx);
-                    // Optional: Clean up fileContents if no longer needed
-                    return newFiles;
-                });
+                setFiles(prev => prev.filter((_, i) => i !== idx));
             };
 
             const toggleSection = (id) => {
@@ -259,7 +387,6 @@
                 setInputs(prev => ({ ...prev, [field]: value }));
             };
 
-            // Individual Analysis Function (GCP Connect)
             const runAnalysis = async (sectionId) => {
                 if (files.length === 0) { alert('ファイルをアップロードしてください。'); return; }
                 
@@ -271,57 +398,24 @@
                 setLoadingStates(prev => ({ ...prev, [sectionId]: true }));
                 
                 try {
-                    // Combine pre-loaded file contents
                     let rawData = "";
                     files.forEach(file => {
                         const content = fileContents[file.name];
-                        if (content) {
-                            rawData += content;
-                        }
+                        if (content) rawData += content;
                     });
 
-                    if (!rawData) {
-                        throw new Error("ファイルの内容を読み取れませんでした。ファイルを再アップロードしてください。");
-                    }
+                    if (!rawData) throw new Error("ファイルの内容を読み取れませんでした。ファイルを再アップロードしてください。");
 
-                    // Build System Prompt based on Mode
+                    // Build Prompts (Same logic as Ver 7.5)
                     let systemPrompt = "";
                     if (mode === 'general_cv') {
-                        systemPrompt = `
-あなたはWEB広告運用のプロフェッショナルコンサルタントです。
-クライアントの売上拡大・利益最大化を目的とし、数値に基づいた論理的な分析を行ってください。
-【評価基準】: CPA（獲得単価）、ROAS（広告費用対効果）、CVR（コンバージョン率）、CV（コンバージョン）を最重要指標とします。
-【トーン＆マナー】: 
-- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。
-- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。
-- 感情的な表現は避け、数値と事実に基づいたプロフェッショナルな文体を維持してください。
-`;
+                        systemPrompt = `あなたはWEB広告運用のプロフェッショナルコンサルタントです。\nクライアントの売上拡大・利益最大化を目的とし、数値に基づいた論理的な分析を行ってください。\n【評価基準】: CPA（獲得単価）、ROAS（広告費用対効果）、CVR（コンバージョン率）、CV（コンバージョン）を最重要指標とします。\n【トーン＆マナー】: \n- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。\n- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。\n- 感情的な表現は避け、数値と事実に基づいたプロフェッショナルな文体を維持してください。`;
                     } else if (mode === 'general_branding') {
-                        systemPrompt = `
-あなたはWEB広告運用のプロフェッショナルコンサルタントです。
-クライアントの認知拡大・ブランドリフトを目的とし、リーチと誘導効率を分析してください。
-【評価基準】: CTR（クリック率）、CPC（クリック単価）、インプレッション数、CPMを重要指標とします。CVは参考程度とします。
-【トーン＆マナー】: 
-- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。
-- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。
-- ポジティブな要素を見つけ出し、さらなる拡大策を提案するスタイルで記述してください。
-`;
+                        systemPrompt = `あなたはWEB広告運用のプロフェッショナルコンサルタントです。\nクライアントの認知拡大・ブランドリフトを目的とし、リーチと誘導効率を分析してください。\n【評価基準】: CTR（クリック率）、CPC（クリック単価）、インプレッション数、CPMを重要指標とします。CVは参考程度とします。\n【トーン＆マナー】: \n- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。\n- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。\n- ポジティブな要素を見つけ出し、さらなる拡大策を提案するスタイルで記述してください。`;
                     } else if (mode === 'pachinko') {
-                        systemPrompt = `
-あなたはパチンコホール集客の専門WEBマーケターです。
-店舗の「稼働率向上」「来店客数増加」を目的とした分析を行ってください。 CTR（クリック率）、CPC（クリック単価）、インプレッション数、CPMについても可能な限り分析し、改善策を提案してください。
-【重要・用語制限】: 
-- 「CV（コンバージョン）」という言葉は絶対に使用せず、「来店」「稼働」「アクション」「客数」などに言い換えてください。
-- 「CPA」は「来店獲得単価」や「アクション単価」と言い換えてください。
-【評価基準】: エリア商圏内の競合との比較、新台入替やイベント日（特定日）の反響を重視してください。
-【トーン＆マナー】: 
-- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。
-- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。
-- 現場の店長にも伝わる、分かりやすく熱意のある表現を心がけてください。
-`;
+                        systemPrompt = `あなたはパチンコホール集客の専門WEBマーケターです。\n店舗の「稼働率向上」「来店客数増加」を目的とした分析を行ってください。 CTR（クリック率）、CPC（クリック単価）、インプレッション数、CPMについても可能な限り分析し、改善策を提案してください。\n【重要・用語制限】: \n- 「CV（コンバージョン）」という言葉は絶対に使用せず、「来店」「稼働」「アクション」「客数」などに言い換えてください。\n- 「CPA」は「来店獲得単価」や「アクション単価」と言い換えてください。\n【評価基準】: エリア商圏内の競合との比較、新台入替やイベント日（特定日）の反響を重視してください。\n【トーン＆マナー】: \n- クライアントへの「公式な分析レポート」として適切な、丁寧かつ論理的な「です・ます調」を使用してください。\n- メールのような挨拶（拝啓、お世話になっております等）は一切禁止です。\n- 現場の店長にも伝わる、分かりやすく熱意のある表現を心がけてください。`;
                     }
 
-                    // Build User Context from 9 Inputs (Updated High Priority Instructions with ROAS/ROI)
                     const userContext = `
 【最重要：分析の前提データ（データ修正・上書き指示）】
 以下の「詳細入力オプション」に記載された情報は、アップロードされたレポートファイルの数値よりも**優先度が高い**情報です。
@@ -341,191 +435,51 @@
 
                     const sectionConfig = ANALYSIS_SECTIONS.find(s => s.id === sectionId);
                     
-                    // ===============================================
-                    //  Logic Branching for "Comparison" vs "Single Month"
-                    // ===============================================
                     let specificInstruction = "";
-
-                    // A. 比較専用セクション（複数ファイルの比較を許可・推奨）
                     if (sectionId === 'comparisonMoM') {
-                        specificInstruction = `
-【重要：期間比較・トレンド分析モード（汎用比較）】
-今回は「期間比較・トレンド分析」です。
-入力データの中に、**「複数の期間のファイル」**（例：11月と9月、あるいは11月と6月など）が含まれているか確認してください。
-必ずしも「先月」とは限りません。任意の過去時点との比較を行います。
-
-1. **複数ファイルがある場合（最重要）**:
-   - ファイル名やデータ内の日付ヘッダーから、アップロードされた全ファイルの日付を特定してください。
-   - **「最も日付が新しいもの」を「当月（現在）」**と定義します。
-   - **「それ以外の古いもの」を「比較対象（過去）」**と定義します。
-   - 当月 vs 過去の数値を比較し、その期間の変化（%）と、なぜそうなったかの要因を分析してください。
-   - もしファイルが3つ以上ある場合は、時系列順に並べてトレンド（傾向）を分析してください。
-
-2. **1つのファイルのみの場合**:
-   - データ内に「前月比」や「過去比」などの項目があればそれを使用してください。
-   - 過去データが全くない場合は、「比較対象となる過去データが見つかりません」と前置きした上で、当月のデータから読み取れるトレンド（前半vs後半など）を記述してください。
-
-【深掘り分析の必須要件】
-「数値が増えた/減った」という事実報告だけでは不十分です。
-**「なぜ変化したのか？（要因の仮説）」**と**「その変化を受けて、今後どう対策すべきか？（具体的なアクション）」**まで深く踏み込んで記述してください。
-プロのコンサルタントとして、クライアントが気づいていない視点を提供してください。
-
-【数値の取り扱いに関する絶対ルール】
-ユーザーからの「詳細入力オプション（特にその他特記事項）」に、期間ごとのCV数や売上などの数値が記載されている場合は、
-**必ずその数値をメインの比較対象として使用してください。**
-レポートファイルの数値と比較して乖離がある場合は、「レポート上は〇〇件ですが、実数値（特記事項）に基づくと～」という文脈で分析してください。
-`;
-                    } 
-                    else if (sectionId === 'comparisonYoY') {
-                        specificInstruction = `
-【重要：前年比較モード】
-今回は「前年同月比分析」です。
-データの中に「前年（昨年の同月）」のデータが含まれているか確認してください。
-（複数のファイルがある場合は、ファイル名の日付から昨年データを探してください）
-
-1. 昨年と比較して、市場環境やユーザーの反応がどう変化したかを分析してください。
-2. データがない場合は、季節要因（今の時期特有の動き）について一般論を交えて分析してください。
-3. 単なる増減だけでなく、市場トレンドや外的要因も絡めて深く考察してください。
-`;
-                    }
-                    
-                    // B. その他のセクション（最新データのみを使用する強力な制約）
-                    else {
-                        // 基本の最新データ限定プロンプト
-                        let baseInstruction = `
-【最重要：分析対象データの期間限定について】
-今回アップロードされたデータセットには、過去（先月や昨年）のファイルが含まれている可能性があります。
-しかし、本セクション「${sectionConfig.title}」では、**「最新の状況」のみを分析したい**ため、以下のルールを厳守してください。
-
-1. **最新ファイルの特定**: データ内の日付やファイル名を確認し、**「最も日付が新しい期間（当月）」**のデータのみを抽出してください。
-2. **過去データの除外**: 比較用の過去データ（前月、昨年など）は、本セクションではノイズとなるため**完全に無視**してください。「先月と比べて～」といった比較の言及も禁止します。
-3. **現状分析への集中**: 「今、どうなっているか」だけに焦点を当てて分析を行ってください。
-`;
-
-                        // 全体サマリーの場合は、8大指標の網羅要件と深掘り要件を追加
+                        specificInstruction = `【重要：期間比較・トレンド分析モード】\n複数の期間ファイルがある場合、最新を当月、それ以外を過去として比較してください。\n「なぜ変化したのか（要因仮説）」と「どう対策すべきか（アクション）」を深く分析してください。`;
+                    } else if (sectionId === 'comparisonYoY') {
+                        specificInstruction = `【重要：前年比較モード】\n前年データと比較し、市場環境の変化や季節要因を分析してください。`;
+                    } else {
+                        let baseInstruction = `【最重要：最新データ一点集中】\n本セクション「${sectionConfig.title}」では、**「最新の状況」のみ**を分析してください。過去との比較はノイズとなるため無視してください。`;
                         if (sectionId === 'summary') {
                             baseInstruction += `
-【重要：全体サマリー作成の必須要件 - 深掘り分析】
-最新データに基づき、以下の **8大指標** を必ず網羅的に確認し、数値を含めて分析してください。
-1. **表示回数 (Imp)**
-2. **クリック数 (Click)**
-3. **クリック率 (CTR)**
-4. **クリック単価 (CPC)**
-5. **費用 (Cost)**
-6. **コンバージョン数 (CV)** ※パチンコモードの場合は「来店数」等に読み替え
-7. **コンバージョン率 (CVR)**
-8. **獲得単価 (CPA)**
-9. **広告費用対効果 (ROAS)** ※データがある場合
-
-**【重要：ROAS/ROI目標・実績との乖離分析】**
-詳細入力オプションに「ROAS/ROI目標」が入力されている場合は、その数値を**「絶対的な評価基準」**としてください。
-- 目標を達成している場合: 勝因を分析し、さらなる拡大策を提案してください。
-- 目標未達の場合: **「なぜ届かなかったのか」**の要因特定と、**「ギャップを埋めるための具体的な改善施策」**を最優先で記述してください。
-
-**【重要：深掘り分析の徹底】**
-単に数値を羅列するだけの「浅いレポート」は禁止します。
-以下のような視点で、プロフェッショナルな深い考察を行ってください。
-- **KPI間の相関関係**: 「クリック率は高いがCVRが低い要因は何か？（LPの離脱？ターゲティングのズレ？）」など。
-- **ボトルネックの特定**: 現状の最大の課題（CPA高騰の主因など）をズバリ指摘してください。
-- **成果の要因**: なぜ今月は良かったのか/悪かったのか、具体的な仮説を提示してください。
+\n【重要：全体サマリーにおける深掘り分析の徹底】
+単に数値を羅列するだけの「浅いレポート」は禁止します。プロのコンサルタントとして、以下の視点で深く考察してください。
+1. **8大指標の網羅と評価**: Imp, Click, CTR, CPC, Cost, CV, CVR, CPA, ROASの数値を提示し、それぞれの良し悪しを判定してください。
+2. **ボトルネックの特定**: 「CPA悪化の主因はCPCの高騰ではなく、CVRの低下にある」といったように、課題の核心を特定してください。
+3. **KPI間の相関分析**: 「クリック率は高いがCVRが低い（＝LPに問題あり？）」など、指標間の関係性から仮説を導き出してください。
+4. **目標との乖離**: 詳細入力にROAS/ROI目標がある場合は、その達成可否と、未達ならその原因を最優先で論じてください。
 `;
                         }
-
-                        // キャンペーン分析などの場合でもROAS/ROIを意識させる
                         if (sectionId !== 'summary') {
-                            baseInstruction += `
-**【ROAS/ROIの考慮】**
-もし入力データにROAS/ROIの目標値がある場合は、本セクション（${sectionConfig.title}）の分析においても、
-その目標達成に貢献しているか、足を引っ張っているかという視点を盛り込んでください。
-`;
+                            baseInstruction += `\nもし入力データにROAS/ROIの目標値がある場合は、本セクションの分析においても、その目標達成に貢献しているかという視点を盛り込んでください。`;
                         }
-
                         specificInstruction = baseInstruction;
                     }
 
-                    // Strict instruction to focus only on the specific section
                     const prompt = `
 ${systemPrompt}
-
 ${userContext}
-
 【今回のミッション】
 あなたは今、**【${sectionConfig.title}】** の専任担当者です。
 渡されたレポートデータの中から、**【${sectionConfig.title}】** に関連する数値や情報「のみ」を抽出し、深い分析を行ってください。
-
-【禁止事項】
-- 全体サマリーや、他の分析項目については、**一切言及しないでください**（※全体サマリー作成時を除く）。
-- 焦点がぼやけるため、広く浅い分析は禁止します。**${sectionConfig.title}** の一点突破で詳しく記述してください。
-
 ${specificInstruction}
+【最重要: 出力形式の厳守事項】
+1. Markdown記号禁止（**太字**や#見出しなどは使用しない）。
+2. 「。」で必ず改行。1段落は3行以内。
+3. 箇条書きのリスト間は空行を入れず詰める。
+4. 文体は「です・ます調」。挨拶不要。
+5. 構成：【現状分析】と【改善施策】の2部構成。
 
-【最重要: 出力形式の厳守事項（Markdown禁止）】
-1. **Markdown記号の完全排除**:
-   - 出力テキストには、「**太字**」や「# 見出し」のようなMarkdown記号を一切使用しないでください。
-   - 「**」や「*」や「#」などの記号が混じると、レポートとしての品質が下がります。プレーンテキストのみで出力してください。
-   - 箇条書きの際も、「- 」などの記号は使わず、単に改行するか、全角の「・」などを使用してください。
-
-2. **文体とトーン**:
-   - 必ず「〜です。」「〜ます。」という丁寧な文末を使用してください。
-   - 「拝啓」「敬具」「お世話になっております」などの挨拶は不要です。いきなり本題に入ってください。
-
-3. **GEO広告・来店データの取り扱い**:
-   - 詳細入力欄（GEO広告・来店計測データ）が空欄であっても、アップロードされたレポートデータ内に「来店数」「来店率」「来店単価」などの指標が含まれている場合は、必ずそれを読み取って分析に含めてください。
-   - 来店データが見つからない場合のみ、WEB上の数値（CV、CPA等）を中心に分析してください。
-
-4. **文章構成**:
-   - 必ず以下の2つのセクションで構成してください。
-   
-   【現状分析】
-   （ここに分析内容を記述。数値の背景にある「要因」まで深く踏み込むこと）
-
-   【改善施策】
-   （ここに改善案を記述。具体的かつ実行可能なアクションプランを提示すること）
-
-【可読性を高めるための改行・フォーマットルール（厳守）】
-多忙な営業担当者が、スマホやPCでパッと見て「3秒」で内容を理解できるように、以下のルールを徹底してください。
-
-1. **「。」で必ず改行**:
-   - 文章がダラダラ続くことを防ぐため、句点「。」が来たら必ず改行してください。
-   - 1つの段落が3行以上にならないようにしてください。
-
-2. **リスト形式の行間圧縮**:
-   - 箇条書き（・）の項目同士の間に、無駄な空行を入れないでください。
-   - 悪い例：
-     ・項目A
-     
-     ・項目B
-   - 良い例：
-     ・項目A
-     ・項目B
-
-3. **1文の長さ制限**:
-   - 1つの文は短くシンプルにしてください。
-   - 接続詞（〜が、〜ので、）で長く繋げず、一度言い切ってください。
-
-4. **余白の制御**:
-   - セクション（【現状分析】など）の前後には空行を1行入れてください。
-   - それ以外で、無意味に2行以上の連続した改行を入れないでください。
-
-【レポートデータ（複数ファイル含む可能性あり）】
+【レポートデータ】
 ${rawData}
-
---------------------------------------------------
-【最終確認: 分析の必須条件】
-分析を行う前に、再度以下の「詳細入力オプション」の内容を確認してください。
-これはレポートデータよりも優先される絶対条件です。
-特に数値の指定がある場合は、これを正として分析結果（CPA等の再計算含む）を出力してください。
-
-${userContext}
 `;
 
                     const response = await fetch(GCP_API_ENDPOINT, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            prompt: prompt,
-                            modelName: modelName
-                        })
+                        body: JSON.stringify({ prompt: prompt, modelName: modelName })
                     });
 
                     if (!response.ok) {
@@ -534,9 +488,7 @@ ${userContext}
                     }
 
                     const resultJson = await response.json();
-                    const aiText = resultJson.text || "生成エラー";
-                    
-                    updateResult(sectionId, aiText);
+                    updateResult(sectionId, resultJson.text || "生成エラー");
                     setExpandedSections(prev => ({ ...prev, [sectionId]: true })); 
 
                 } catch (e) {
@@ -547,28 +499,16 @@ ${userContext}
                 }
             };
 
-            // Download All Results as CSV
             const downloadAllCSV = () => {
                 const BOM = '\uFEFF'; 
                 let csvContent = BOM + "セクション,分析内容\n";
-                
-                // Add Inputs context
-                csvContent += `"前提条件: 期間","${inputs.period}"\n`;
-                csvContent += `"前提条件: ゴール","${inputs.goal}"\n`;
-                csvContent += `"前提条件: ターゲット","${inputs.target}"\n`;
-                csvContent += `"前提条件: 強み","${inputs.strength}"\n`;
-                csvContent += `"前提条件: 競合","${inputs.competitor}"\n`;
-                csvContent += `"前提条件: 課題","${inputs.issues}"\n`;
-                csvContent += `"前提条件: 特記事項","${inputs.notes}"\n`;
-                csvContent += `"前提条件: GEO来店データ","${inputs.geoData}"\n`;
-                csvContent += `"前提条件: ROAS/ROI目標","${inputs.roasRoi}"\n`;
-
+                // Inputs Context
+                csvContent += `"前提条件: 期間","${inputs.period}"\n"前提条件: ゴール","${inputs.goal}"\n"前提条件: ターゲット","${inputs.target}"\n"前提条件: 強み","${inputs.strength}"\n"前提条件: 競合","${inputs.competitor}"\n"前提条件: 課題","${inputs.issues}"\n"前提条件: 特記事項","${inputs.notes}"\n"前提条件: GEO来店データ","${inputs.geoData}"\n"前提条件: ROAS/ROI目標","${inputs.roasRoi}"\n`;
                 ANALYSIS_SECTIONS.forEach(section => {
                     const content = results[section.id] || "（未生成）";
                     const escapedContent = content.replace(/"/g, '""');
                     csvContent += `"${section.title}","${escapedContent}"\n`;
                 });
-
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -577,6 +517,21 @@ ${userContext}
                 a.click();
             };
 
+            // Loading Screen
+            if (authLoading) {
+                return (
+                    <div className="flex h-screen items-center justify-center bg-slate-100">
+                        <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    </div>
+                );
+            }
+
+            // Not Logged In -> Show Login
+            if (!user) {
+                return <Login onLoginSuccess={() => setAuthLoading(true)} />;
+            }
+
+            // Logged In -> Show Tool
             return (
                 <div className="flex h-screen overflow-hidden bg-slate-50">
                     {/* --- Sidebar --- */}
@@ -586,7 +541,7 @@ ${userContext}
                                 <Icons.PieChart className="w-8 h-8 text-blue-500" />
                                 <span>Ad Report AI</span>
                             </h1>
-                            <p className="text-xs mt-2 text-slate-500 font-mono">Ver 1.0</p>
+                            <p className="text-xs mt-2 text-slate-500 font-mono">Ver1.0</p>
                         </div>
                         <nav className="flex-1 p-4 overflow-y-auto">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Analysis Menu</div>
@@ -627,6 +582,9 @@ ${userContext}
                             <div className="flex gap-2">
                                 <button onClick={downloadAllCSV} disabled={Object.keys(results).length === 0} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm">
                                     <Icons.Download className="w-4 h-4" /> CSV一括ダウンロード
+                                </button>
+                                <button onClick={handleLogout} className="bg-slate-200 hover:bg-slate-300 text-slate-600 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors">
+                                    <Icons.LogOut className="w-4 h-4" /> ログアウト
                                 </button>
                             </div>
                         </header>
@@ -751,7 +709,7 @@ ${userContext}
                                                     ></textarea>
                                                 </div>
 
-                                                {/* New: ROAS/ROI Data Input */}
+                                                {/* ROAS/ROI Data Input */}
                                                 <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
                                                     <label className="block text-xs font-bold text-orange-600 mb-1 flex items-center gap-1">
                                                         <Icons.TrendingUp className="w-3 h-3" /> 9. ROAS/ROI目標・実績 (重要)
@@ -817,7 +775,7 @@ ${userContext}
                                                         <div className="py-12 text-center">
                                                             <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-200 border-t-blue-600 mb-4"></div>
                                                             <p className="text-slate-500 animate-pulse font-bold">AIがデータを分析しています...</p>
-                                                            <p className="text-xs text-slate-400 mt-2">※ファイルサイズによって30秒〜2分ほどかかる場合があります</p>
+                                                            <p className="text-xs text-slate-400 mt-2">※ファイルサイズによって30秒～2分以上かかる場合があります</p>
                                                         </div>
                                                     ) : (
                                                         <div>
@@ -862,10 +820,10 @@ ${userContext}
                                             onChange={(e) => setModelName(e.target.value)}
                                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                                         >
-                                            <option value="gemini-2.5-flash">gemini-2.5-flash (推奨: 高速・低コスト)</option>
-                                            <option value="gemini-2.5-pro">gemini-2.5-pro (高精度・複雑な推論用)</option>
+                                            <option value="gemini-2.5-flash">gemini-2.5-flash (高速分析用)</option>
+                                            <option value="gemini-2.5-pro">gemini-2.5-pro (高精度分析用)</option>
                                         </select>
-                                        <p className="text-xs text-slate-500 mt-2">※通常はFlashモデルで十分な精度が出ます。</p>
+                                        <p className="text-xs text-slate-500 mt-2">※通常はFlashモデルで十分な分析が可能。</p>
                                     </div>
                                     <button 
                                         onClick={saveSettings}
